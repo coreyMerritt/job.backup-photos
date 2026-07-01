@@ -3,11 +3,16 @@
 set -euo pipefail
 
 # Variables
+install_as_root="true"
 script_dir="$(dirname "$(readlink -f "$0")")"
 script_name="backup-photos.sh"
 script_log_name="$(echo $script_name | sed 's|.sh|.log|g')"
-cron_job_definition="0 2 * * 0 ${script_dir}/${script_name} >> ${script_dir}/${script_log_name} 2>&1"
-current_cronjobs=$(sudo crontab -l 2>/dev/null || true)
+cron_job_definition="0 15 * * 0 ${script_dir}/${script_name} >> ${script_dir}/${script_log_name} 2>&1"
+if [[ "$install_as_root" == "true" ]]; then
+  current_cronjobs=$(sudo crontab -l 2>/dev/null || true)
+else
+  current_cronjobs=$(crontab -l 2>/dev/null || true)
+fi
 filtered_cronjobs=$(echo "$current_cronjobs" | grep -Fv "$script_name" || true)
 
 # Functions
@@ -29,10 +34,22 @@ else
 fi
 
 if [ -z "$filtered_cronjobs" ]; then
-  echo "$cron_job_definition" | sudo crontab -
+  if [[ "$install_as_root" == "true" ]]; then
+    echo "$cron_job_definition" | sudo crontab -
+  else
+    echo "$cron_job_definition" | crontab -
+  fi
 else
-  (echo "$filtered_cronjobs"; echo "$cron_job_definition") | sudo crontab -
+  if [[ "$install_as_root" == "true" ]]; then
+    (echo "$filtered_cronjobs"; echo "$cron_job_definition") | sudo crontab -
+  else
+    (echo "$filtered_cronjobs"; echo "$cron_job_definition") | crontab -
+  fi
 fi
 
 info "Done. Current crontab:"
-sudo crontab -l
+if [[ "$install_as_root" == "true" ]]; then
+  sudo crontab -l
+else
+  crontab -l
+fi
